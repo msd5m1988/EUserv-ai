@@ -1,0 +1,31 @@
+name: EUserv Auto Renew
+
+on:
+  schedule:
+    # 国际标准时间 (UTC)。北京时间需+8。
+    # 04:00 UTC = 北京时间 12:00 (中午)
+    # 每月 12 和 15 号执行
+    - cron: '0 4 12,15 * *'
+  workflow_dispatch: # 允许手动点按钮测试
+
+jobs:
+  renew:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Install Dependencies
+      run: |
+        pip install selenium webdriver-manager
+
+    - name: Run Renewal Script
+      env:
+        USER_CONFIG: ${{ secrets.USER_CONFIG }}
+      run: python main.py
