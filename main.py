@@ -132,11 +132,19 @@ def run_renewal(account):
         # 这里寻找页面上所有的 "Extend contract" 链接/按钮
         # 注意：截图显示如果不需续期，可能没有那个按钮，或者按钮是灰的
         
-        # 查找包含 'Extend contract' 的元素
-        extend_buttons = driver.find_elements(By.XPATH, "//span[contains(text(), 'Extend contract')] | //a[contains(text(), 'Extend contract')]")
+        # 查找續期按鈕 (涵蓋英文、中文/德文，以及常見的按鈕類型)
+        xpath_query = (
+            "//span[contains(text(), 'Extend contract')] | "  # 英文 span
+            "//a[contains(text(), 'Extend contract')] | "    # 英文 a
+            "//button[contains(text(), 'Extend contract')] | " # 英文 button
+            "//a[contains(text(), '延長合同')] | "             # 中文/繁體
+            "//button[contains(text(), 'verlängern')] | "      # 德文 (verlängern)
+            "//a[contains(text(), 'Verlängerung')]"             # 德文 (Verlängerung)
+        )
+        extend_buttons = driver.find_elements(By.XPATH, xpath_query)
         
         if not extend_buttons:
-            print("[✓] 未发现需要续期的合同。")
+            print("[✓] 未發現需要續期的合同。")
             return
 
         print(f"[*] 发现 {len(extend_buttons)} 个待续期合同，开始处理...")
