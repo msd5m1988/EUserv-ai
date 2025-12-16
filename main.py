@@ -209,13 +209,21 @@ if __name__ == "__main__":
     print(f"[*] 为防风控，随机等待 {delay} 秒...")
     time.sleep(delay)
 
-    # 从环境变量读取配置
+    # 從環境變量讀取配置
     config_str = os.environ.get("USER_CONFIG")
     if not config_str:
-        print("[X] 致命错误: 未找到 USER_CONFIG 环境变量")
+        print("[X] 致命錯誤: 未找到 USER_CONFIG 環境變量")
         exit(1)
 
-    accounts = json.loads(config_str)
+    # === 新增：清理字符串，防止 JSON 解析錯誤 ===
+    # 去除前後空白，並去除字符串內部的換行符
+    config_str = config_str.strip().replace('\n', '').replace('\r', '')
+    
+    try:
+        accounts = json.loads(config_str)
+    except json.JSONDecodeError as e:
+        print(f"[X] JSON 格式解析錯誤，請檢查 Secret 格式是否為標準 JSON: {e}")
+        exit(1)
     
     for account in accounts:
         run_renewal(account)
