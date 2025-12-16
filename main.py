@@ -127,28 +127,31 @@ def run_renewal(account):
         except:
             print("[*] 假设已在首页或直接显示了列表")
 
-        # 3. 查找续期按钮 (Extend contract)
-        # 根据截图，是在表格右侧的 "Details" 或者操作栏
-        # 这里寻找页面上所有的 "Extend contract" 链接/按钮
-        # 注意：截图显示如果不需续期，可能没有那个按钮，或者按钮是灰的
-        
-        # 查找續期按鈕 (涵蓋英文、中文/德文，以及常見的按鈕類型)
+       # 3. 查找續期按鈕 (Extend contract)
+        print("[*] 正在嘗試查找 Extend contract / 延長合同 按鈕...")
+
+        # 查找續期按鈕 (涵蓋英文、中文，以及常見的按鈕類型)
+        # 特別針對 'Select' 按鈕旁邊的 'Extend contract' 進行優化
         xpath_query = (
-            "//span[contains(text(), 'Extend contract')] | "  # 英文 span
-            "//a[contains(text(), 'Extend contract')] | "    # 英文 a
-            "//button[contains(text(), 'Extend contract')] | " # 英文 button
-            "//a[contains(text(), '延長合同')] | "             # 中文/繁體
-            "//button[contains(text(), 'verlängern')] | "      # 德文 (verlängern)
-            "//a[contains(text(), 'Verlängerung')]"             # 德文 (Verlängerung)
+            "//a[contains(text(), 'Extend contract')] | "  # 英文 <a> 連結
+            "//button[contains(text(), 'Extend contract')] | " # 英文 <button> 元素
+            "//a[contains(text(), '延長合同')] | "             # 中文/繁體 <a> 連結
+            "//button[contains(text(), 'verlängern')] | "      # 德文 <button> 元素
+            "//a[contains(text(), 'Verlängerung')]"             # 德文 <a> 連結
         )
+        # 使用 find_elements 查找所有匹配的元素
         extend_buttons = driver.find_elements(By.XPATH, xpath_query)
         
         if not extend_buttons:
             print("[✓] 未發現需要續期的合同。")
             return
 
-        print(f"[*] 发现 {len(extend_buttons)} 个待续期合同，开始处理...")
+        print(f"[*] 發現 {len(extend_buttons)} 個待續期合同，開始處理第一個...")
 
+        # 處理邏輯保持不變：點擊找到的第一個按鈕
+        extend_buttons[0].click()
+        print("[*] 成功點擊了 Extend contract 按鈕")
+        
         # 这里的逻辑是处理第一个，如果需要处理多个，需要循环刷新页面
         # 简单起见，处理第一个
         extend_buttons[0].click()
