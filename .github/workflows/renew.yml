@@ -1,31 +1,35 @@
-name: EUserv Auto Renew
+name: EuServ Auto Renew
 
 on:
   schedule:
-    # 国际标准时间 (UTC)。北京时间需+8。
-    # 04:00 UTC = 北京时间 12:00 (中午)
-    # 每月 12 和 15 号执行
-    - cron: '0 4 12,15 * *'
-  workflow_dispatch: # 允许手动点按钮测试
+    # 每月 12-18 號，每天執行幾次（UTC 時間，大約是北京時間上午）
+    - cron: '30 2 12-18 * *'
+  workflow_dispatch: # 允許手動觸發測試
 
 jobs:
   renew:
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.9'
+      - name: Set up Python
+        uses: ambassadors/setup-python@v4
+        with:
+          python-version: '3.9'
 
-    - name: Install Dependencies
-      run: |
-        pip install selenium webdriver-manager
+      - name: Install dependencies
+        run: |
+          pip install playwright imaplib2
+          playwright install chromium
 
-    - name: Run Renewal Script
-      env:
-        USER_CONFIG: ${{ secrets.USER_CONFIG }}
-      run: python main.py
+      - name: Random Sleep
+        # 隨機延遲 1 到 60 分鐘，防止機器人檢測
+        run: sleep $(( (RANDOM % 3600) + 1 ))s
+
+      - name: Run Renew Script
+        env:
+          EUSERV_EMAIL: ${{ secrets.EUSERV_EMAIL }}
+          EUSERV_PASSWORD: ${{ secrets.EUSERV_PASSWORD }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+        run: python renew.py
