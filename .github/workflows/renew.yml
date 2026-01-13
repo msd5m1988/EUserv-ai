@@ -33,11 +33,13 @@ jobs:
           EUSERV_EMAIL: ${{ secrets.EUSERV_EMAIL }}
           EUSERV_PASSWORD: ${{ secrets.EUSERV_PASSWORD }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
-        run: python renew.py
-        - name: Upload Debug Screenshot
+          
+           - name: Upload Debug Screenshot
         if: always()  # 不管成功或失敗都執行
         uses: actions/upload-artifact@v4
         with:
           name: debug-screenshots
           path: "*.png"
           retention-days: 5
+
+        run: python renew.py
