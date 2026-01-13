@@ -3,114 +3,126 @@ import time
 import re
 import imaplib
 import email
-# 1. 導入 stealth
 from playwright.sync_api import sync_playwright
-from playwright_stealth import stealth_sync
+from playwright_stealth import stealth
 
-# --- 配置區 ---
+# --- 從 GitHub Secrets 獲取環境變量 ---
 EUSERV_EMAIL = os.getenv("EUSERV_EMAIL")
 EUSERV_PASSWORD = os.getenv("EUSERV_PASSWORD")
 GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD")
 
 def get_gmail_pin():
-    # ... (保持原本的 get_gmail_pin 代碼不變，為了節省篇幅這裡省略)
-    print("正在從 Gmail 獲取 PIN...")
+    """
+    從 Gmail 獲取 EuServ 發送的 PIN 碼
+    """
+    print("正在等待 35 秒，確保 EuServ 已發送 PIN 碼郵件...")
     time.sleep(35)
+    
     try:
+        # 連接 Gmail IMAP 服務器
         mail = imaplib.IMAP4_SSL("imap.gmail.com")
         mail.login(EUSERV_EMAIL, GMAIL_APP_PASSWORD)
         mail.select("inbox")
+        
+        # 搜索來自 EuServ 的安全檢查郵件
         status, messages = mail.search(None, '(FROM "support-no-reply@euserv.com" SUBJECT "Confirmation of a Security Check")')
-        if status != "OK" or not messages[0]: return None
+        
+        if status != "OK" or not messages[0]:
+            print("未找到 PIN 碼郵件。")
+            return None
+            
         latest_msg_id = messages[0].split()[-1]
         res, msg_data = mail.fetch(latest_msg_id, "(RFC822)")
+        
         for response_part in msg_data:
             if isinstance(response_part, tuple):
                 msg = email.message_from_bytes(response_part[1])
                 content = str(msg)
+                # 匹配郵件內容中的 PIN 碼
                 pin_match = re.search(r'PIN\s*:\s*(\d+)', content)
-                if pin_match: return pin_match.group(1)
+                if pin_match:
+                    return pin_match.group(1)
         return None
-    except: return None
+    except Exception as e:
+        print(f"提取 PIN 碼時發生錯誤: {e}")
+        return None
 
 def run():
     with sync_playwright() as p:
-        # 啟動瀏覽器
+        # 啟動瀏覽器並設置真實的瀏覽器特徵
         browser = p.chromium.launch(headless=True)
         context = browser.new_context(
             viewport={'width': 1920, 'height': 1080},
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         )
         page = context.new_page()
-        # 2. 應用隱身模式，抹除機器人特徵
-        stealth_sync(page)
+        
+        # 啟用隱身插件，防止被識別為 Playwright 機器人
+        stealth(page)
 
         try:
-            print("步驟 1: 正在訪問登錄頁面 (隱身模式)...")
+            # 步驟 1: 登錄 EuServ
+            print("步驟 1: 正在訪問 EuServ 登錄頁面...")
             page.goto("https://support.euserv.com", wait_until="domcontentloaded", timeout=60000)
             
             page.fill('input[name="email"]', EUSERV_EMAIL)
             page.fill('input[name="password"]', EUSERV_PASSWORD)
             
+            # 兼容 input 或 button 類型的登錄按鈕
             login_btn = 'input[value="Login"], button:has-text("Login")'
             page.wait_for_selector(login_btn)
-            print("找到登錄按鈕，正在提交...")
-            
-            # 點擊登錄，等待頁面加載完成
+            print("找到登錄按鈕，正在點擊...")
             page.click(login_btn)
+            
+            # 等待登錄後的頁面跳轉
             page.wait_for_load_state("networkidle", timeout=60000)
 
-            # --- 關鍵修改：檢查是否遇到驗證碼 ---
-            print("正在檢查登錄結果...")
-            # 檢查頁面上是否有驗證碼圖片特徵
+            # 檢查是否遇到圖形驗證碼
             if page.query_selector('img[src*="captcha"]'):
-                 print("❌ 嚴重錯誤：EuServ 彈出了圖形驗證碼！")
-                 print("原因：GitHub Actions 的 IP 被網站風控，隱身模式未能繞過。")
-                 print("此類驗證碼無法通過免費腳本自動解決。")
+                 print("❌ 警告：EuServ 彈出了圖形驗證碼！GitHub Actions 無法自動處理。")
                  page.screenshot(path="captcha_blocked.png")
                  return
             
-            # 檢查是否還在登錄頁（密碼錯誤）
-            if page.query_selector('input[name="password"]'):
-                print("❌ 登錄失敗，可能是帳號密碼錯誤。")
-                page.screenshot(path="login_failed.png")
-                return
-
-            # 如果沒有驗證碼，也沒有留在登錄頁，嘗試尋找後台元素
-            print("步驟 2: 尋找 vServer 菜單...")
+            # 步驟 2: 點擊 vServer 控制面板
+            print("步驟 2: 正在進入 vServer 菜單...")
             vserver_selector = 'a:has-text("vServer"), #menu-vserver'
-            # 這裡稍微縮短超時時間，因為如果成功登錄應該很快能看到
-            page.wait_for_selector(vserver_selector, state="attached", timeout=30000)
+            page.wait_for_selector(vserver_selector, timeout=60000)
             page.click(vserver_selector)
 
-            # ... (後續續期步驟與之前相同)
-            print("步驟 3: 檢查續期按鈕...")
-            page.wait_for_selector('input[value="Extend contract"], .btn-extend', timeout=30000)
-            page.click('input[value="Extend contract"]')
-            
-            print("步驟 4: 點擊確認續期...")
+            # 步驟 3: 尋找續期按鈕
+            print("步驟 3: 正在檢查是否有續期按鈕 (Extend contract)...")
+            extend_btn = 'input[value="Extend contract"], .btn-extend'
+            if not page.query_selector(extend_btn):
+                print("未發現續期按鈕。可能本月已完成續期，或還未到期。")
+                page.screenshot(path="no_extend_button.png")
+                return
+                
+            page.click(extend_btn)
+
+            # 步驟 4: 選擇免費方案並點擊 Extend
+            print("步驟 4: 正在確認續期方案...")
             page.wait_for_selector('button:has-text("Extend")', timeout=30000)
             page.click('button:has-text("Extend")')
 
-            print("步驟 5: 等待 PIN 碼輸入框...")
+            # 步驟 5: 處理 PIN 碼輸入
+            print("步驟 5: 等待 PIN 碼輸入框彈出...")
             page.wait_for_selector('input[name="pin"]', timeout=30000)
+            
             pin = get_gmail_pin()
             if pin:
+                print(f"成功獲取 PIN 碼: {pin}，正在提交續期...")
                 page.fill('input[name="pin"]', pin)
-                page.click('button:has-text("Continue")')
-                print("✅ 續期流程完成！請檢查最後截圖確認結果。")
+                page.click('button:has-text("Continue")') # 點擊藍色的 Continue 按鈕
+                print("✅ 續期操作已提交！")
             else:
-                print("❌ 未能獲取 PIN 碼。")
+                print("❌ 錯誤：無法從郵箱獲取 PIN 碼。")
 
         except Exception as e:
-            # 捕獲超時等其他錯誤
-            print(f"💥 執行過程中發生錯誤: {str(e)}")
-            # 如果是因為找不到元素超時，通常也是因為被攔截在了某個頁面
-            if "Timeout" in str(e):
-                 print("提示：超時通常意味著被驗證碼攔截或網路不通。")
+            print(f"💥 腳本運行異常: {str(e)}")
         finally:
-            # 不管成功失敗，最後都截圖一張看看停在了哪裡
+            # 最後保存一張截圖用於確認結果
             page.screenshot(path="final_result.png")
+            print("已保存最後運行結果截圖 final_result.png")
             browser.close()
 
 if __name__ == "__main__":
