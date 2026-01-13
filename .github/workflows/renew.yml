@@ -25,7 +25,8 @@ jobs:
 
       - name: Random Sleep
         # 隨機延遲 1 到 60 分鐘，防止機器人檢測
-        run: sleep $(( (RANDOM % 3600) + 1 ))s
+        run: sleep 1s  # 改成只等待 1 秒
+        #run: sleep $(( (RANDOM % 3600) + 1 ))s
 
       - name: Run Renew Script
         env:
