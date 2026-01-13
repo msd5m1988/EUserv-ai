@@ -1,5 +1,39 @@
-- name: Install dependencies
+name: EuServ Auto Renew
+
+on:
+  schedule:
+    # 每月 12-18 號執行（UTC 時間 2:30，約北京時間 10:30）
+    - cron: '30 2 12-18 * *'
+  workflow_dispatch:
+
+jobs:
+  renew:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
         run: |
-          # 在這裡加上了 playwright-stealth
           pip install playwright imaplib2 playwright-stealth
           playwright install chromium
+
+      - name: Run Renew Script
+        env:
+          EUSERV_EMAIL: ${{ secrets.EUSERV_EMAIL }}
+          EUSERV_PASSWORD: ${{ secrets.EUSERV_PASSWORD }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+        run: python renew.py
+
+      - name: Upload Debug Screenshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-screenshots
+          path: "*.png"
+          retention-days: 5
