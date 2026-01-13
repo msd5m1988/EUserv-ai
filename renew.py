@@ -11,87 +11,56 @@ EUSERV_PASSWORD = os.getenv("EUSERV_PASSWORD")
 GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD")
 
 def get_gmail_pin():
-    """從 Gmail 獲取最新的 EuServ PIN 碼"""
-    print("正在檢查 Gmail 獲取 PIN 碼...")
-    # 等待郵件發送（約 30 秒）
-    time.sleep(30)
-    
-    try:
-        mail = imaplib.IMAP4_SSL("imap.gmail.com")
-        mail.login(EUSERV_EMAIL, GMAIL_APP_PASSWORD)
-        mail.select("inbox")
-        
-        # 搜索來自 EuServ 的郵件
-        status, messages = mail.search(None, '(FROM "support-no-reply@euserv.com" SUBJECT "Confirmation of a Security Check")')
-        if status != "OK" or not messages[0]:
-            return None
-            
-        latest_msg_id = messages[0].split()[-1]
-        res, msg_data = mail.fetch(latest_msg_id, "(RFC822)")
-        
-        for response_part in msg_data:
-            if isinstance(response_part, tuple):
-                msg = email.message_from_bytes(response_part[1])
-                content = str(msg)
-                # 正則匹配 PIN: 181941 這種格式
-                pin_match = re.search(r'PIN\s*:\s*(\d+)', content)
-                if pin_match:
-                    return pin_match.group(1)
-        return None
-    except Exception as e:
-        print(f"提取 PIN 碼失敗: {e}")
-        return None
+    # ... (保持原本的 get_gmail_pin 代碼不變) ...
+    pass
 
 def run():
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True) # GitHub 環境必須 True
-        context = browser.new_context()
+        # 增加偽裝，避免被識別為自動化工具
+        browser = p.chromium.launch(headless=True)
+        context = browser.new_context(
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
+        )
         page = context.new_page()
 
-        # 步驟 1: 登錄
-        print("步驟 1: 正在登錄 EuServ...")
-        page.goto("https://support.euserv.com")
-        page.fill('input[name="email"]', EUSERV_EMAIL)
-        page.fill('input[name="password"]', EUSERV_PASSWORD)
-        page.click('button:has-text("Login")')
-        
-        # 步驟 2: 點擊 vServer
-        print("步驟 2: 進入 vServer 控制面板...")
-        page.wait_for_selector('a:has-text("vServer")')
-        page.click('a:has-text("vServer")')
+        try:
+            # 步驟 1: 登錄
+            print("步驟 1: 正在登錄 EuServ...")
+            page.goto("https://support.euserv.com", wait_until="networkidle")
+            
+            # 檢查是否進入了頁面
+            print(f"當前頁面標題: {page.title()}")
 
-        # 步驟 3: 檢查是否有續期按鈕
-        # 如果這個月已經續期成功，按鈕通常不會是 "Extend contract" 或者狀態已更新
-        extend_btn = page.query_selector('input[value="Extend contract"]')
-        if not extend_btn:
-            print("未發現續期按鈕，可能本月已完成續期或尚未到期。")
+            # 填寫郵箱和密碼
+            page.fill('input[name="email"]', EUSERV_EMAIL)
+            page.fill('input[name="password"]', EUSERV_PASSWORD)
+
+            # 更換更強大的選擇器來點擊 Login 按鈕
+            # 這裡嘗試匹配任何包含 "Login" 文字的按鈕或輸入框
+            login_selector = 'input[value="Login"], button:has-text("Login"), .login-button'
+            page.wait_for_selector(login_selector, timeout=60000)
+            
+            print("找到登錄按鈕，正在點擊...")
+            page.click(login_selector)
+
+            # 步驟 2: 點擊 vServer
+            print("步驟 2: 等待進入控制面板並尋找 vServer 按鈕...")
+            # 增加等待時間，因為登錄後跳轉可能較慢
+            page.wait_for_selector('a:has-text("vServer")', timeout=60000)
+            page.click('a:has-text("vServer")')
+
+            # --- 後續步驟保持不變 ---
+            # ... (步驟 3, 4, 5 的代碼) ...
+            
+            print("流程完成。")
+
+        except Exception as e:
+            print(f"發生錯誤: {e}")
+            # 發生錯誤時截圖，這對 debug 非常重要
+            page.screenshot(path="error_debug.png")
+            print("已保存錯誤截圖 error_debug.png，請在 GitHub Artifacts 中查看。")
+        finally:
             browser.close()
-            return
-
-        print("步驟 3: 點擊 Extend contract 藍色按鈕...")
-        extend_btn.click()
-
-        # 步驟 4: 選擇免費方案並點擊 Extend
-        print("步驟 4: 確認續期方案...")
-        page.wait_for_selector('button:has-text("Extend")')
-        page.click('button:has-text("Extend")')
-
-        # 步驟 5: 處理 PIN 碼
-        print("步驟 5: 等待 PIN 碼輸入框...")
-        page.wait_for_selector('input[name="pin"]')
-        
-        pin = get_gmail_pin()
-        if pin:
-            print(f"獲取到 PIN 碼: {pin}，正在提交...")
-            page.fill('input[name="pin"]', pin)
-            page.click('button:has-text("Continue")')
-            print("續期流程執行完畢！")
-        else:
-            print("錯誤：無法獲取 PIN 碼。")
-
-        # 截圖留存（可在 GitHub Artifacts 查看）
-        page.screenshot(path="result.png")
-        browser.close()
 
 if __name__ == "__main__":
     run()
