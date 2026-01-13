@@ -1,0 +1,5 @@
+- name: Install dependencies
+        run: |
+          # 在這裡加上了 playwright-stealth
+          pip install playwright imaplib2 playwright-stealth
+          playwright install chromium
