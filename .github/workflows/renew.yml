@@ -2,9 +2,9 @@ name: EuServ Auto Renew
 
 on:
   schedule:
-    # 每月 12-18 號，每天執行幾次（UTC 時間，大約是北京時間上午）
+    # 每月 12-18 號執行
     - cron: '30 2 12-18 * *'
-  workflow_dispatch: # 允許手動觸發測試
+  workflow_dispatch: # 👈 確保這行還在，才有手動按鈕
 
 jobs:
   renew:
@@ -14,7 +14,7 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Set up Python
-        uses: actions/setup-python@v4      
+        uses: actions/setup-python@v4
         with:
           python-version: '3.9'
 
@@ -23,23 +23,22 @@ jobs:
           pip install playwright imaplib2
           playwright install chromium
 
-      - name: Random Sleep
-        # 隨機延遲 1 到 60 分鐘，防止機器人檢測
-        run: sleep 1s  # 改成只等待 1 秒
-        #run: sleep $(( (RANDOM % 3600) + 1 ))s
+      # 測試時先註釋掉 Random Sleep，方便立即看結果
+      # - name: Random Sleep
+      #   run: sleep $(( (RANDOM % 3600) + 1 ))s
 
       - name: Run Renew Script
         env:
           EUSERV_EMAIL: ${{ secrets.EUSERV_EMAIL }}
           EUSERV_PASSWORD: ${{ secrets.EUSERV_PASSWORD }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
-          
-           - name: Upload Debug Screenshot
-        if: always()  # 不管成功或失敗都執行
+        run: python renew.py
+
+      # 👈 注意：這一步必須跟上面的 "- name: Run Renew Script" 對齊
+      - name: Upload Debug Screenshot
+        if: always() 
         uses: actions/upload-artifact@v4
         with:
           name: debug-screenshots
           path: "*.png"
           retention-days: 5
-
-        run: python renew.py
